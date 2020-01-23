@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>reveal.js</title>
+
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/reveal.css">
+    <link rel="stylesheet" href="css/theme/black.css">
+
+    <!-- Theme used for syntax highlighting of code -->
+    <link rel="stylesheet" href="lib/css/monokai.css">
+
+    <!-- Printing and PDF exports -->
+    <script>
+      var link = document.createElement( 'link' );
+      link.rel = 'stylesheet';
+      link.type = 'text/css';
+      link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+      document.getElementsByTagName( 'head' )[0].appendChild( link );
+    </script>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section>
+          <h1>Racing Capybara, Puma and Chrome</h1>
+          <h3>Write More Reliable Browser Test</h3>
+          <p>&nbsp;</p>
+          <p style="text-align: right; font-size: 0.8em;">Author: Konstantin Filtschew</p>
+        </section>
+        <section>
+          <h2>Introduction</h2>
+          <ul>
+            <li>Name: Konstantin Filtschew</li>
+            <li>Work: Admin/Developer/...</li>
+            <li>Working for: Speak to me personally :)</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Agenda</h2>
+          <ul>
+            <li>rack-test</li>
+            <li>Browser Tests</li>
+            <li>Examples</li>
+            <li>Help finding flaky tests</li>
+            <li>Feature specs on CI/CD Systems</li>
+            <li>Exchange of knowledge</li>
+            <li>Beer? :D</li>
+          </ul>
+        </section>
+        <section>
+          <h2>rack-test</h2>
+          <pre>
+            <code class="ruby">
+  visit root_url
+  # capybara: load requested url
+
+  # rack-test: fake Rack request
+  # rack-test: in-memory instance of Rails
+  # rack-test: response parse by rack-test
+  # rack-test: saved as current page
+
+  # capybara: ...
+            </code>
+          </pre>
+        </section>
+        <section>
+          <h2>rack-test</h2>
+          <ul>
+            <li>
+              Good
+              <ul>
+                <li>Small</li>
+                <li>Easy</li>
+                <li>Reliable</li>
+              </ul>
+            </li>
+            <li class="fragment">
+              Bad
+              <ul>
+                <li>No Javascript</li>
+              </ul>
+            </li>
+          </ul>
+        </section>
+        <section>
+          <h2>Browser Tests</h2>
+          <p>Running a test using Selenium, capybara-webkit, Poltergeist, ...</p>
+          <ul>
+            <li>Process forking</li>
+            <li>Background threads</li>
+            <li>HTTP requests</li>
+          </ul>
+
+          <div class="fragment fade-up">
+            <p>Understand:</p>
+            <ul>
+              <li>running</li>
+              <li>race conditions</li>
+            </ul>
+          </div>
+        </section>
+        <section>
+          <h2>Capybara to the Rescue</h2>
+          <table style="font-size: 0.5em">
+            <thead>
+              <tr>
+                <th>Test Thread</th>
+                <th>Application Thread</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Your test invokes <em>visit</em>.</td>
+                <td>Waiting for a request.</td>
+              </tr>
+              <tr class="fragment">
+                <td>Capybara tells the driver to load the page.</td>
+                <td>Waiting for a request.</td>
+              </tr>
+              <tr class="fragment">
+                <td>The driver performs a request.</td>
+                <td>Waiting for a request.</td>
+              </tr>
+              <tr class="fragment">
+                <td>Your test invokes <em>click_link</em>.</td>
+                <td>Your application receives the request.</td>
+              </tr>
+              <tr class="fragment">
+                <td>Capybara looks for the link on the page, but it isn’t there.</td>
+                <td>Your application sends a response.</td>
+              </tr>
+              <tr class="fragment">
+                <td>Capybara tries to find the element again, but it’s not there.</td>
+                <td>The driver receives the response.</td>
+              </tr>
+              <tr class="fragment">
+                <td>Capybara successfully finds the element from the response.</td>
+                <td>Waiting for a request.</td>
+              </tr>
+              <tbody>
+              </tbody>
+          </table>
+          <p>&nbsp;</p>
+          <p style="text-align: right; font-size: 0.4em">Source: <a
+             href="https://thoughtbot.com/blog/write-reliable-asynchronous-integration-tests-with-capybara#capybara-to-the-rescue">Thoughtbot</a></p>
+        </section>
+        <section>
+          <h2>Methods that do wait</h2>
+          <ul style="font-size: 0.8em">
+            <li>find, find_field, find_link and other finders</li>
+            <li>within</li>
+            <li>has_selector?, has_no_selector? and similar</li>
+            <li>click_link, fill_in, check, select, choose and other actions</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Methods that don't wait</h2>
+          <ul>
+            <li>visit(path)</li>
+            <li>current_path</li>
+            <li>all(selector)</li>
+            <li>first(selector)</li>
+            <li>execute_script, evaluate_script</li>
+            <li>simple accessors: text, value, title, etc</li>
+          </ul>
+        </section>
+        <section>
+          <h2>First matching element</h2>
+          <p>Bad</p>
+          <pre>
+            <code class="ruby">
+  first(".active").click
+            </code>
+          </pre>
+          <div class="fragment">
+            <p>Good</p>
+            <pre>
+              <code class="ruby">
+ find(".active").click
+              </code>
+            </pre>
+          </div>
+        </section>
+        <section>
+          <h2>All matching</h2>
+          <p>Bad</p>
+          <pre>
+            <code class="ruby">
+  all(".active").each(&:click)
+            </code>
+          </pre>
+          <div class="fragment">
+            <p>Good</p>
+            <pre>
+              <code class="ruby">
+  find(".active", match: :first)
+  all(".active").each(&:click)
+              </code>
+            </pre>
+          </div>
+        </section>
+        <section>
+          <h2>Directly Javascript</h2>
+          <p>Bad</p>
+          <pre>
+            <code class="ruby">
+  execute_script("$('.active').focus()")
+            </code>
+          </pre>
+          <div class="fragment">
+            <p>Good</p>
+            <pre>
+              <code class="ruby">
+  find(".active")
+  execute_script("$('.active').focus()")
+              </code>
+            </pre>
+          </div>
+        </section>
+        <section>
+          <h2>Checking a field’s value</h2>
+          <p>Bad</p>
+          <pre>
+            <code class="ruby">
+  expect(find_field("Name").value).to eq("Kevin")
+            </code>
+          </pre>
+          <div class="fragment">
+            <p>Good</p>
+            <pre>
+              <code class="ruby">
+  expect(page).to have_field("Name", with: "Kevin")
+              </code>
+            </pre>
+          </div>
+        </section>
+        <section>
+          <h2>Looking for matching CSS</h2>
+          <p>Bad</p>
+          <pre>
+            <code class="ruby">
+  expect(has_css?(".active")).to be_falsey
+            </code>
+          </pre>
+          <div class="fragment">
+            <p>Good</p>
+            <pre>
+              <code class="ruby">
+  expect(page).not_to have_css(".active")
+              </code>
+            </pre>
+          </div>
+        </section>
+        <section>
+          <h2>Something not there</h2>
+          <p>Bad</p>
+          <pre>
+            <code class="ruby">
+  expect(page).to !have_css(".some-class")
+            </code>
+          </pre>
+          <div class="fragment">
+            <p>Good</p>
+            <pre>
+              <code class="ruby">
+  expect(page).to have_no_css(".some-class")
+              </code>
+            </pre>
+          </div>
+        </section>
+        <section>
+          <h2>Something not there</h2>
+          <p>Good</p>
+          <pre>
+            <code class="ruby">
+  expect(page).to have_no_css(".some-class")
+            </code>
+          </pre>
+          <div class="fragment">
+            <p>Better</p>
+            <pre>
+              <code class="ruby">
+  expect(page).to_not have_css(".some-class")
+              </code>
+            </pre>
+          </div>
+        </section>
+        <section>
+          <h2>Don't mix things up</h2>
+          <ul>
+            <li>Think and test like a user</li>
+            <li class="fragment">
+              Users don’t lookup databases
+              <ul>
+                <li>They have no access</li>
+                <li>They don’t even know there is one</li>
+                <li>Lookup in frontend like a user</li>
+              </ul>
+            </li>
+            <li class="fragment">
+              Don't test code flow
+              <ul>
+                <li>Test workflows</li>
+                <li>Don't lookup details</li>
+              </ul>
+            </li>
+          </ul>
+        </section>
+        <section>
+          <h2>Finding flaky tests</h2>
+          <ul>
+            <li>You see them</li>
+            <li class="fragment">Grep for examples:
+              <ul>
+                <li>first(</li>
+                <li>expect(find</li>
+                <li>expect(page).to !</li>
+                <li>the one you have found</li>
+              </ul>
+            </li>
+          </ul>
+
+          <p>&nbsp;</p>
+          <p class="fragment">Still won’t find them all</p>
+        </section>
+        <section>
+          <h2>Still fail randomly</h2>
+          <pre>
+            <code class="ruby">
+  Capybara.default_max_wait_time
+            </code>
+          </pre>
+          <ul>
+            <li>default: 2 seconds</li>
+            <li>increase?</li>
+            <li>decrease?</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Get some sleep?</h2>
+          <pre>
+            <code class="ruby">
+  sleep 1
+            </code>
+          </pre>
+          <div class="fragment">
+            <p>Wait, can we use it to fail flaky tests?</p>
+
+            <pre>
+              <code class="ruby">
+  # app/controllers/application_controller.rb
+  after_action -> { sleep(0.5) }
+              </code>
+            </pre>
+          </div>
+        </section>
+        <section>
+          <h2>Ideas for slower actions</h2>
+          <pre>
+            <code class="ruby">
+  # get extra time
+  expect(page).to have_current_path(expected_path)
+  expect(page).to have_content("page_title")
+  expect(page).to have_content("element_below_your_next_action")
+            </code>
+          </pre>
+
+          <p>&nbsp;</p>
+          <p>Lookup things which should be there gives extra time.</p>
+        </section>
+        <section>
+          <h2>Summary</h2>
+          <ul>
+            <li>Feature tests are different</li>
+            <li>Think like a user</li>
+            <li>Wait like a user until X is finished/loaded/enabled</li>
+            <li>Don't sleep :D</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Read carefully and understand</h2>
+          <ul>
+            <li>
+              <a href="https://thoughtbot.com/blog/write-reliable-asynchronous-integration-tests-with-capybara">Write Reliable, Asynchronous Integration Tests With Capybara</a>
+            </li>
+            <li>
+              <a href="https://bibwild.wordpress.com/2016/02/18/struggling-towards-reliable-capybara-javascript-testing/">Struggling Towards Reliable Capybara Javascript Testing</a>
+            </li>
+            <li>
+              <a href="http://johnpwood.net/2015/04/23/tips-and-tricks-for-dubugging-and-fixing-slowflaky-capybara-specs/">Tips and Tricks for Dubugging and Fixing Slow/Flaky Capybara Specs</a>
+            </li>
+            <li>
+              <a href="https://www.simplybusiness.co.uk/about-us/tech/2015/02/flaky-tests-and-capybara-best-practices/">Flaky tests & Capybara best practices</a>
+            </li>
+          </ul>
+        </section>
+        <section>
+          <h2>Feature specs on CI/CD Systems</h2>
+          <p>Understand the underlying architecture</p>
+          <ul>
+            <li>CPUs</li>
+            <li>RAM</li>
+            <li>Network</li>
+            <li>HD/SSD</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Thank you</h2>
+
+          <p>&nbsp;</p>
+          <p>Happy to stay in touch:<p>
+          <ul>
+            <li>Name: Konstantin Filtschew</li>
+            <li>Mail: konstantin.filtschew@gmail.com</li>
+            <li>Twitter: <a href="https://twitter.com/Fa11enAngel">@Fa11enAngel</a></li>
+            <li>
+              <a href="https://www.xing.com/profile/Konstantin_Filtschew">Xing</a>,
+              <a href="https://www.linkedin.com/in/konstantin-filtschew-b7138019">Linkedin</a>
+          </ul>
+        </section>
+      </div>
+    </div>
+
+    <script src="js/reveal.js"></script>
+
+    <script>
+      // More info about config & dependencies:
+      // - https://github.com/hakimel/reveal.js#configuration
+      // - https://github.com/hakimel/reveal.js#dependencies
+      Reveal.initialize({
+        hash: true,
+        dependencies: [
+          { src: 'plugin/markdown/marked.js' },
+          { src: 'plugin/markdown/markdown.js' },
+          { src: 'plugin/highlight/highlight.js' },
+          { src: 'plugin/notes/notes.js', async: true }
+        ]
+      });
+    </script>
+  </body>
+</html>
