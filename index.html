@@ -335,6 +335,7 @@
               <ul>
                 <li>Test workflows</li>
                 <li>Don't lookup details</li>
+                <li>Separation of concerns</li>
               </ul>
             </li>
           </ul>
@@ -342,7 +343,7 @@
         <section>
           <h2>Finding flaky tests</h2>
           <ul>
-            <li>You see them</li>
+            <li>You'll have an eye for this.</li>
             <li class="fragment">Grep for examples:
               <ul>
                 <li>first(</li>
@@ -394,7 +395,7 @@
   # get extra time
   expect(page).to have_current_path(expected_path)
   expect(page).to have_content("page_title")
-  expect(page).to have_content("element_below_your_next_action")
+  expect(page).to have_content("element_below")
             </code>
           </pre>
 
